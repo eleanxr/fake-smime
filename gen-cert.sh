@@ -148,7 +148,7 @@ generate_certificate() {
 
     log_info "Signing certificate with CA (${DAYS} days)..."
     openssl x509 -req -days "${DAYS}" -in "${SCRIPT_DIR}/cert.csr" \
-        -CA "${CA_CRT}" -CAkey "${CA_KEY}" -set_serial 1 \
+        -CA "${CA_CRT}" -CAkey "${CA_KEY}" -set_serial "$((RANDOM * 32768 + RANDOM))" \
         -out "${CRT_FILE}" -addtrust emailProtection \
         -addreject clientAuth -addreject serverAuth -trustout \
         -extfile "${SCRIPT_DIR}/smime.cnf" -extensions smime
