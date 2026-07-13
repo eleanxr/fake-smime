@@ -20,6 +20,7 @@ P12_FILE="${SCRIPT_DIR}/pkcs12.p12"
 
 # Default values
 CN=""
+EMAIL=""
 DAYS=365
 
 # Function to display help
@@ -31,6 +32,7 @@ Generate S/MIME certificates with user-provided Common Name and validity period.
 
 Options:
   --cn       Common name for the certificate (required)
+  --email    Email address for the certificate (optional)
   --days     Validity period in days (required)
   --help     Show this help message
 
@@ -87,6 +89,10 @@ parse_args() {
                 CN="$2"
                 shift 2
                 ;;
+            --email)
+                EMAIL="$2"
+                shift 2
+                ;;
             --days)
                 DAYS="$2"
                 shift 2
@@ -104,12 +110,23 @@ parse_args() {
 
     # Validate required arguments
     if [[ -z "${CN}" ]]; then
-        log_error "--cn (common name) is required"
-        exit 1
+        # If no --cn provided, use email as the common name
+        if [[ -n "${EMAIL}" ]]; then
+            CN="${EMAIL%%@*}"
+        else
+            log_error "--cn (common name) is required"
+            exit 1
+        fi
     fi
 
     if [[ -z "${DAYS}" ]] || ! [[ "${DAYS}" =~ ^[0-9]+$ ]]; then
         log_error "--days (validity period in days) is required and must be a number"
+        exit 1
+    fi
+
+    # Validate email if provided
+    if [[ -n "${EMAIL}" ]] && ! [[ "${EMAIL}" =~ ^[^@]+@[^@]+$ ]]; then
+        log_error "--email must be a valid email address"
         exit 1
     fi
 }
@@ -121,8 +138,13 @@ generate_certificate() {
 
     log_info "Generating Certificate Signing Request..."
     export OPENSSL_CONF="${SCRIPT_DIR}/smime.cnf"
-    openssl req -new -key "${KEY_FILE}" -out "${SCRIPT_DIR}/cert.csr" \
-        -subj "/CN=${CN}"
+    if [[ -n "${EMAIL}" ]]; then
+        openssl req -new -key "${KEY_FILE}" -out "${SCRIPT_DIR}/cert.csr" \
+            -subj "/CN=${CN}/emailAddress=${EMAIL}"
+    else
+        openssl req -new -key "${KEY_FILE}" -out "${SCRIPT_DIR}/cert.csr" \
+            -subj "/CN=${CN}"
+    fi
 
     log_info "Signing certificate with CA (${DAYS} days)..."
     openssl x509 -req -days "${DAYS}" -in "${SCRIPT_DIR}/cert.csr" \
